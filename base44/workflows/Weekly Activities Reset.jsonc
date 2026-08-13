@@ -1,0 +1,44 @@
+{
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "weekly_activities_reset",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "archive_old": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "archiveWeeklyActivities"
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Archive past weeks",
+            "description": "Mark older activities as archived"
+          }
+        }
+      }
+    ]
+  },
+  "name": "Weekly Activities Reset",
+  "description": "Every Monday at 12:01 AM, archives previous weeks' sensory activities so the new week starts fresh.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "1 0 * * 1",
+      "one_time_date": null,
+      "timezone": "America/New_York",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

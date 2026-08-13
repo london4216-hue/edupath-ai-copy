@@ -1,0 +1,117 @@
+{
+  "name": "Lesson",
+  "type": "object",
+  "properties": {
+    "kid_id": {
+      "type": "string",
+      "title": "Kid ID",
+      "description": "Reference to the Kid this lesson belongs to"
+    },
+    "week_start": {
+      "type": "string",
+      "format": "date",
+      "title": "Week Start",
+      "description": "The Monday date of this week (ISO)"
+    },
+    "day": {
+      "type": "string",
+      "title": "Day",
+      "enum": [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday"
+      ]
+    },
+    "subject": {
+      "type": "string",
+      "title": "Subject",
+      "default": "Numbers"
+    },
+    "completed": {
+      "type": "boolean",
+      "title": "Completed",
+      "default": false
+    },
+    "skipped": {
+      "type": "boolean",
+      "title": "Skipped",
+      "default": false
+    },
+    "completed_date": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Completed Date"
+    },
+    "repeat_next_week": {
+      "type": "boolean",
+      "title": "Repeat Next Week",
+      "description": "Caregiver asked to repeat this activity again next week",
+      "default": false
+    },
+    "ai_content": {
+      "type": "array",
+      "title": "AI YouTube Recommendations",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "video_id": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "loved": {
+      "type": "array",
+      "title": "Loved Video IDs",
+      "description": "YouTube video IDs the kid marked as loved",
+      "items": {
+        "type": "string"
+      }
+    },
+    "drawing_url": {
+      "type": "string",
+      "title": "Drawing URL",
+      "description": "URL of the kid's saved drawing for this lesson",
+      "format": "uri"
+    },
+    "story": {
+      "type": "string",
+      "title": "Story",
+      "description": "AI-generated personalized story for this lesson"
+    }
+  },
+  "required": [
+    "kid_id",
+    "week_start",
+    "day",
+    "subject"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}

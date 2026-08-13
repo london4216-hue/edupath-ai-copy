@@ -1,0 +1,85 @@
+{
+  "name": "Kid",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "title": "Kid's Name",
+      "description": "The child's first name"
+    },
+    "age": {
+      "type": "number",
+      "title": "Kid's Age",
+      "description": "The child's age \u2014 drives content difficulty",
+      "default": 4
+    },
+    "program_length": {
+      "type": "number",
+      "title": "Program Length (weeks)",
+      "description": "How many weeks the learning program runs",
+      "default": 8
+    },
+    "developmental_milestone": {
+      "type": "string",
+      "title": "Current Milestone Focus",
+      "description": "The specific developmental milestone the child is working on right now. Drives milestone-aligned content. Editable from the dashboard."
+    },
+    "support_needs": {
+      "type": "string",
+      "title": "Support Needs",
+      "description": "Any diagnoses, conditions, or adaptations (e.g., cerebral palsy, non-verbal, uses a wheelchair). Activities adapt to these needs so a nanny or caregiver can lead them. EduPath complements, not replaces, professional therapy.",
+      "default": ""
+    },
+    "cheer_text": {
+      "type": "string",
+      "title": "Encouragement Saying",
+      "description": "The cheer the grown-up says (and records) for the child, played back at the end of every lesson. Editable from the dashboard.",
+      "default": "You did it!"
+    },
+    "avatar_color": {
+      "type": "string",
+      "title": "Avatar Color",
+      "default": "#4969E1"
+    },
+    "photo_url": {
+      "type": "string",
+      "title": "Kid's Photo",
+      "description": "A photo of the child uploaded during intake, shown instead of the generic avatar.",
+      "format": "uri"
+    },
+    "current_letter": {
+      "type": "string",
+      "title": "Current Target Letter",
+      "description": "The letter the child is currently working on in articulation therapy. Starts at A and advances only once the sound is mastered.",
+      "default": "A",
+      "maxLength": 1
+    },
+    "parent_videos": {
+      "type": "array",
+      "title": "Parent Cheer Videos",
+      "description": "A cheer video from each parent (one or two), played at the end of every lesson so the child hears it from every grown-up.",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      }
+    }
+  },
+  "required": [
+    "name",
+    "age"
+  ],
+  "rls": {
+    "read": {
+      "created_by_id": "{{user.id}}"
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "created_by_id": "{{user.id}}"
+    }
+  }
+}
