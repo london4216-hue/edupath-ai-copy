@@ -5,7 +5,7 @@ import DayGraphic from './DayGraphic';
 
 // One day row in the weekly plan. Clicking opens the lesson detail.
 export default function DayCard({ day, lesson, kidId, weekStart }) {
-  const to = `/lesson/${kidId}/${weekStart}/${day.key}`;
+  const to = `/zoodo/${kidId}/${weekStart}/${day.key}`;
   const completed = !!lesson?.completed;
 
   return (
