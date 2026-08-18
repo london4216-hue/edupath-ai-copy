@@ -13,6 +13,7 @@ import LessonDetail from '@/pages/LessonDetail';
 import Dashboard from '@/pages/Dashboard';
 import WeeklyActivities from '@/pages/WeeklyActivities';
 import BubblePop from '@/pages/BubblePop';
+import ZoodoLesson from '@/pages/ZoodoLesson';
 // Add page imports here
 
 const AuthenticatedApp = () => {
@@ -47,6 +48,7 @@ const AuthenticatedApp = () => {
         <Route path="/lesson/:kidId/:weekStart/:day" element={<LessonDetail />} />
         <Route path="/activities" element={<WeeklyActivities />} />
         <Route path="/bubble-pop" element={<BubblePop />} />
+        <Route path="/zoodo/:kidId/:weekStart/:day" element={<ZoodoLesson />} />
         <Route path="/dashboard" element={<Dashboard />} />
       </Route>
       <Route path="*" element={<PageNotFound />} />

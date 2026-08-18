@@ -1,35 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { secrets } from "base44:runtime";
-
-// Premium TTS: the signature "lady" voice via ElevenLabs. Returns a stored
-// file_url. Only the lady voice is ever used — no fallback to any other voice.
-const ELEVEN_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"; // "Rachel" — warm, friendly female
-async function synthesizeSpeech(base44, text) {
-  const clean = (text || "").slice(0, 4500);
-  try {
-    const key = secrets.get("ELEVENLABS_API_KEY");
-    if (key) {
-      const customVoice = secrets.get("ELEVENLABS_VOICE_ID");
-      const voiceId = (customVoice && /^[A-Za-z0-9]{16,}$/.test(customVoice)) ? customVoice : ELEVEN_VOICE_ID;
-      const resp = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-        method: "POST",
-        headers: { "xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg" },
-        body: JSON.stringify({
-          text: clean,
-          model_id: "eleven_turbo_v2_5",
-          voice_settings: { stability: 0.45, similarity_boost: 0.75, style: 0.45, use_speaker_boost: true },
-        }),
-      });
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer();
-        const file = new File([buf], "edu_speech.mp3", { type: "audio/mpeg" });
-        const up = await base44.asServiceRole.integrations.Core.UploadFile({ file });
-        if (up && up.file_url) return up.file_url;
-      }
-    }
-  } catch (e) { /* lady voice only — no fallback voice */ }
-  return "";
-}
+import { synthesizeSpeech } from "../../shared/tts.ts";
 
 // The signature EduPath AI teaching voice — warm, musical, sensory-rich.
 const EDU_VOICE_ID = 'honey';
