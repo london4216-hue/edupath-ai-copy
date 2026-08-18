@@ -85,6 +85,10 @@ export default async function(req: Request): Promise<Response> {
     const milestone = String(body.milestone || '');
     const objective = String(body.lesson_objective || body.objective || 'a fun learning play');
     const duration = Number(body.duration) || 60;
+    // The parent encouragement video is played ONLY after the child completes
+    // the lesson. It is passed through untouched so the frontend has the full
+    // lesson + celebration bundle from one call.
+    const parent_video_url = String(body.parent_video_url || '');
 
     const prompt = buildPrompt(childName, age, milestone, objective, duration);
 
@@ -133,6 +137,7 @@ export default async function(req: Request): Promise<Response> {
       graphics_urls: graphics_urls.map((g: any) => g.url),
       captions: graphics_urls.map((g: any) => g.caption),
       script,
+      parent_video_url,
       notes: `Zoodo made a ${duration}s silly lesson for ${childName}.`,
     });
   } catch (error) {

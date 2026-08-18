@@ -80,6 +80,7 @@ export default function ZoodoLesson() {
           visual_style: 'soft cartoon',
           voice_style: 'Zoodo silly voice',
           duration: 60,
+          parent_video_url: (kid.parent_videos && kid.parent_videos[0]) || '',
         });
         if (cancelled) return;
         if (res?.data?.status === 'error' || res?.data?.error) {
@@ -291,7 +292,7 @@ export default function ZoodoLesson() {
         <CelebrationOverlay
           kidName={kid?.name || 'the child'}
           subject={dayCfg.subject}
-          parentVideos={kid?.parent_videos}
+          parentVideos={media?.parent_video_url ? [media.parent_video_url] : kid?.parent_videos}
           cheerText={kid?.cheer_text}
           onClose={() => { setCelebrating(false); setFinished(true); }}
         />
