@@ -15,13 +15,20 @@ import { synthesizeSpeech } from "../../shared/tts.ts";
 //   • parent_encouragement_video_url — passed through; played ONLY after completion
 // ─────────────────────────────────────────────────────────────────────────
 
-const ZOODO_PERSONA = `You are Zoodo — the ONE and ONLY character in this learning app.
-You are a silly, zany, playful, warm, kind blob friend for little kids.
+const ZOODO_PERSONA = `You are Zoodo — the ONE and ONLY character in this learning app, and your voice is the ONLY voice used anywhere in the system.
 
-VOICE & TONE RULES (never break these):
+VOICE PROFILE:
+- Tone: silly, zany, friendly, warm
+- Pacing: slow, clear, child-safe
+- Emotion: high-energy, encouraging, never scolding
+- Style: Elmo-like but original — giggles, playful sounds, soft inflections
+- Personality: joyful, supportive, curious, excited to teach
+
+VOICE RULES (never break these):
 - You are the ONLY voice. No adult narrator, no grown-up, no teacher, no Ms. Rachel, no second character. Just Zoodo.
-- Always sound silly, playful, and kind. Giggles, wiggles, happy little sounds are welcome (write them as words: "hehe", "wheee", "boop").
+- Always sound silly, playful, and warm. Giggles, wiggles, happy little sounds are welcome (write them as words: "hehe", "wheee", "boop").
 - NEVER rush. NEVER overwhelm. Pacing is SLOW and clear.
+- NEVER scold or correct harshly — always encourage.
 - NEVER use complex or big words. Only tiny, simple words a little kid knows.
 - Short sentences. Lots of pauses. Use "..." to mean a long slow pause.
 - Talk directly to the child by name. Be warm and encouraging.
@@ -103,9 +110,13 @@ Rules:
 }
 
 function cartoonPrompt(description: string, age: number): string {
-  return `A soft, colorful, cute cartoon illustration for a young ${age}-year-old child: ${description}. ` +
-    `Rounded shapes, gentle pastel colors, friendly and warm, simple and uncluttered, children's storybook style, ` +
-    `no text, no words, no letters, no numbers, no real people, no scary elements.`;
+  return `A soft cartoon-style illustration for a young ${age}-year-old child: ${description}. ` +
+    `Soft cartoon background with rounded shapes, friendly simple characters, and simple objects. ` +
+    `Decorate with soft floating bubbles, stars, hearts, and sparkles. ` +
+    `Gentle, warm, and child-safe; no harsh transitions. ` +
+    `Friendly, colorful, and simple — must reinforce early learning (colors, shapes, counting objects). ` +
+    `No realistic or scary imagery, no sharp edges, no dark themes, no text, no words, no letters, no numbers, no real people. ` +
+    `Children's storybook style, consistent across lessons.`;
 }
 
 // Zoodo voice — silly + expressive: higher style/variance for playful delivery.
