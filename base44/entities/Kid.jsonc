@@ -41,12 +41,6 @@
       "title": "Avatar Color",
       "default": "#4969E1"
     },
-    "photo_url": {
-      "type": "string",
-      "title": "Kid's Photo",
-      "description": "A photo of the child uploaded during intake, shown instead of the generic avatar.",
-      "format": "uri"
-    },
     "current_letter": {
       "type": "string",
       "title": "Current Target Letter",

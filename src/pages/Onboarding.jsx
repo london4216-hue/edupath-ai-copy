@@ -32,8 +32,6 @@ export default function Onboarding() {
   const [parentVideos, setParentVideos] = useState([]);
   const [currentParent, setCurrentParent] = useState(0);
   const [camConsent, setCamConsent] = useState(false);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [photoPreview, setPhotoPreview] = useState('');
   const videoRef = useRef(null);
 
   const submit = async (e) => {
@@ -41,18 +39,12 @@ export default function Onboarding() {
     setSaving(true);
     setError('');
     try {
-      let photo_url = '';
-      if (photoFile) {
-        const up = await base44.integrations.Core.UploadFile({ file: photoFile });
-        photo_url = up?.file_url || '';
-      }
       const kid = await base44.entities.Kid.create({
         name: name.trim(),
         age: Number(startAge),
         developmental_milestone: defaultMilestoneForAge(startAge),
         program_length: programLength,
         cheer_text: 'You did it!',
-        photo_url,
       });
       setKidId(kid.id);
       setKid(kid);
@@ -314,38 +306,6 @@ export default function Onboarding() {
               maxLength={30}
               className="w-full rounded-2xl border-2 border-black/10 bg-white px-4 py-4 text-xl font-bold text-black/80 placeholder:text-black/30 focus:border-[#7B4FE0] focus:outline-none"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-black/70 mb-2">
-              Add a photo of {name.trim() || 'your child'}
-            </label>
-            <div className="flex items-center gap-4">
-              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-[#FAD7D7] ring-2 ring-black/5">
-                {photoPreview ? (
-                  <img src={photoPreview} alt="Kid" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <Camera className="h-7 w-7 text-[#D96969]/50" />
-                  </div>
-                )}
-              </div>
-              <label className="flex-1 cursor-pointer rounded-2xl border-2 border-dashed border-black/10 bg-white px-4 py-3 text-center text-sm font-semibold text-black/50 hover:border-[#7B4FE0]/50 transition">
-                {photoPreview ? 'Change photo' : 'Upload photo'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) {
-                      setPhotoFile(f);
-                      setPhotoPreview(URL.createObjectURL(f));
-                    }
-                  }}
-                />
-              </label>
-            </div>
           </div>
 
           <div>
