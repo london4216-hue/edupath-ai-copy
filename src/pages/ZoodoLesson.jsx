@@ -10,15 +10,17 @@ import CelebrationOverlay from '@/components/CelebrationOverlay';
 import MusicToggle from '@/components/MusicToggle';
 import useAutoAmbientMusic from '@/hooks/useAutoAmbientMusic';
 import { getDayConfigForAgeAndKey } from '@/lib/lessonConfig';
-import { ArrowLeft, Loader2, Play, Pause, ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Pause, ArrowRight, Sparkles, Check } from 'lucide-react';
 import { Image } from '@/components/ui/image';
 
 const COLORS = ['#FF9EC4', '#4969E1', '#FFE08A', '#4FAE5A', '#7B4FE0'];
 
-// Zoodo Lesson Engine player — milestone-based, slow pacing, warm tone, music,
-// soft cartoon visuals, and child-safe single-button interaction.
-// The parent encouragement video is NEVER shown during the lesson — it only
-// appears in the CelebrationOverlay AFTER the lesson is fully completed.
+// Milestone-based Zoodo lesson player. Zoodo is the only voice — the lesson
+// flows through five phases (intro → narration → post-explanation → child
+// feedback → completion), each with its own Zoodo audio clip. The parent
+// encouragement video is shown ONLY in the CelebrationOverlay after completion.
+const PHASES = ['intro', 'narration', 'post_explanation', 'child_feedback', 'completion'];
+
 export default function ZoodoLesson() {
   const { kidId, weekStart, day } = useParams();
   const navigate = useNavigate();
@@ -33,9 +35,9 @@ export default function ZoodoLesson() {
   const [mediaStatus, setMediaStatus] = useState('generating');
   const [error, setError] = useState('');
 
+  const [phase, setPhase] = useState('intro');
   const [sceneIdx, setSceneIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [audioDone, setAudioDone] = useState(false);
   const [celebrating, setCelebrating] = useState(false);
   const [finished, setFinished] = useState(false);
 
@@ -77,8 +79,6 @@ export default function ZoodoLesson() {
           age: kid.age || 4,
           milestone: kid.developmental_milestone || '',
           lesson_objective: dayCfg.subject,
-          visual_style: 'soft cartoon',
-          voice_style: 'Zoodo silly voice',
           duration: 60,
           parent_video_url: (kid.parent_videos && kid.parent_videos[0]) || '',
         });
@@ -88,6 +88,7 @@ export default function ZoodoLesson() {
         }
         setMedia(res.data);
         setMediaStatus('ready');
+        setPhase('intro');
       } catch (err) {
         if (cancelled) return;
         setError(err?.message || 'Could not create the Zoodo lesson.');
@@ -98,12 +99,17 @@ export default function ZoodoLesson() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kid?.id, dayCfg?.key]);
 
-  // Auto-play Zoodo voice once media is ready.
+  // Play the current phase's audio whenever the phase (or media) changes.
   useEffect(() => {
-    if (mediaStatus === 'ready' && media?.audio_url && audioRef.current) {
-      audioRef.current.play().then(() => setPlaying(true)).catch(() => {});
-    }
-  }, [mediaStatus, media]);
+    if (mediaStatus !== 'ready' || !media) return;
+    const a = audioRef.current;
+    if (!a) return;
+    const url = media.audio?.[phase];
+    if (!url) { setPlaying(false); return; }
+    a.src = url;
+    a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaStatus, media, phase]);
 
   const togglePlay = () => {
     const a = audioRef.current;
@@ -111,25 +117,38 @@ export default function ZoodoLesson() {
     if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
   };
 
-  const scenes = (media?.graphics_urls || []);
+  const scenes = media?.graphics_urls || [];
   const captions = media?.captions || [];
-  const atLastScene = sceneIdx >= scenes.length - 1;
-  const canFinish = mediaStatus === 'ready' && (audioDone || scenes.length === 0) && (atLastScene || scenes.length === 0);
+  const phaseIdx = PHASES.indexOf(phase);
 
-  const nextScene = () => {
-    if (!atLastScene) setSceneIdx((i) => i + 1);
+  const advanceScene = () => {
+    setSceneIdx((i) => Math.min(i + 1, scenes.length - 1));
   };
 
-  const finish = async () => {
-    if (!lesson) { setFinished(true); return; }
-    try {
-      const updated = await base44.entities.Lesson.update(lesson.id, {
-        completed: true,
-        skipped: false,
-        completed_date: new Date().toISOString(),
-      });
-      setLesson(updated);
-    } catch (e) { /* ignore */ }
+  const onAudioEnded = () => {
+    setPlaying(false);
+    if (phase === 'completion') {
+      completeLesson();
+    } else if (phase !== 'child_feedback') {
+      // Auto-advance intro → narration → post_explanation.
+      // child_feedback waits for the child to tap "I did it!".
+      const next = PHASES[phaseIdx + 1];
+      setPhase(next);
+      if (next === 'narration') setSceneIdx(0);
+    }
+  };
+
+  const completeLesson = async () => {
+    if (lesson) {
+      try {
+        const updated = await base44.entities.Lesson.update(lesson.id, {
+          completed: true,
+          skipped: false,
+          completed_date: new Date().toISOString(),
+        });
+        setLesson(updated);
+      } catch (e) { /* ignore */ }
+    }
     confetti({ particleCount: 140, spread: 110, origin: { y: 0.5 }, colors: COLORS });
     setCelebrating(true);
   };
@@ -179,13 +198,29 @@ export default function ZoodoLesson() {
         </div>
       </div>
 
+      {/* Phase dots */}
+      <div className="mb-3 flex items-center justify-center gap-1.5">
+        {PHASES.map((ph, i) => (
+          <div
+            key={ph}
+            className={`h-2.5 rounded-full transition-all ${
+              i === phaseIdx ? 'w-7 bg-[#D96969]' : i < phaseIdx ? 'w-2.5 bg-[#4FAE5A]' : 'w-2.5 bg-black/15'
+            }`}
+          />
+        ))}
+      </div>
+
       {/* Zoodo + scene stage */}
       <div className="rounded-3xl bg-white p-4 shadow-sm">
         <div className="flex flex-col items-center text-center">
           <ZoodoCharacter size={88} bounce={playing} />
 
           <h2 className="mt-1 text-base font-bold text-black/80">
-            Hi {kid?.name}! Zoodo is so happy to play!
+            {phase === 'intro' && `Hi ${kid?.name}! Zoodo is so happy to play!`}
+            {phase === 'narration' && 'Watch and listen to Zoodo…'}
+            {phase === 'post_explanation' && 'Let\'s remember what we learned!'}
+            {phase === 'child_feedback' && 'Now it\'s YOUR turn!'}
+            {phase === 'completion' && `Hooray ${kid?.name}!`}
           </h2>
 
           {mediaStatus === 'generating' && (
@@ -201,7 +236,8 @@ export default function ZoodoLesson() {
 
           {mediaStatus === 'ready' && media && (
             <>
-              {scenes.length > 0 && (
+              {/* Scenes show during narration + post-explanation */}
+              {(phase === 'narration' || phase === 'post_explanation') && scenes.length > 0 && (
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={sceneIdx}
@@ -224,52 +260,58 @@ export default function ZoodoLesson() {
                 </AnimatePresence>
               )}
 
-              {/* Scene dots */}
-              {scenes.length > 1 && (
-                <div className="mt-2 flex items-center justify-center gap-1.5">
-                  {scenes.map((_, i) => (
-                    <div
-                      key={i}
-                      className={`h-2 rounded-full transition-all ${
-                        i === sceneIdx ? 'w-6 bg-[#D96969]' : 'w-2 bg-black/15'
-                      }`}
-                    />
-                  ))}
+              {/* Child feedback prompt */}
+              {phase === 'child_feedback' && (
+                <div className="mt-3 w-full rounded-2xl bg-[#E8F0FF] p-4">
+                  <p className="text-sm font-bold text-black/70">
+                    {media.assessment?.target || 'Show Zoodo what you can do!'}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-black/40">
+                    {media.assessment?.mode === 'mic' ? 'Say it out loud!' : 'Show Zoodo with your body!'}
+                  </p>
                 </div>
               )}
 
               {/* Play / pause Zoodo voice */}
-              {media.audio_url && (
+              {media.audio?.[phase] && (
                 <button
                   onClick={togglePlay}
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4969E1] py-2.5 text-base font-bold text-white active:scale-[0.98] transition hover:bg-[#3b54c9]"
                 >
                   {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-                  {playing ? 'Pause Zoodo' : 'Hear Zoodo again'}
+                  {playing ? 'Pause Zoodo' : 'Hear Zoodo'}
                 </button>
               )}
 
-              {/* Next scene or Finish */}
-              {!atLastScene ? (
+              {/* Phase actions */}
+              {phase === 'narration' && scenes.length > 1 && sceneIdx < scenes.length - 1 && (
                 <SensoryButton
-                  onClick={nextScene}
+                  onClick={advanceScene}
                   glow="#F2A03D"
                   className="mt-2 flex w-full items-center justify-center gap-2 bg-[#F2A03D] py-3 text-base text-white"
                 >
                   Next picture <ArrowRight className="h-5 w-5" />
                 </SensoryButton>
-              ) : canFinish ? (
+              )}
+
+              {phase === 'child_feedback' && (
                 <SensoryButton
-                  onClick={finish}
+                  onClick={() => setPhase('completion')}
+                  glow="#4FAE5A"
+                  className="mt-2 flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white"
+                >
+                  <Check className="h-5 w-5" /> I did it!
+                </SensoryButton>
+              )}
+
+              {phase === 'completion' && !playing && (
+                <SensoryButton
+                  onClick={completeLesson}
                   glow="#4FAE5A"
                   className="mt-2 flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white"
                 >
                   <Sparkles className="h-5 w-5" /> All done!
                 </SensoryButton>
-              ) : (
-                <div className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-black/10 bg-[#FFF6E6] py-3 text-sm font-semibold text-black/50">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Listen to Zoodo finish…
-                </div>
               )}
             </>
           )}
@@ -280,13 +322,7 @@ export default function ZoodoLesson() {
         Zoodo is the only voice — just listen and play along!
       </p>
 
-      {media?.audio_url && (
-        <audio
-          ref={audioRef}
-          src={media.audio_url}
-          onEnded={() => { setPlaying(false); setAudioDone(true); }}
-        />
-      )}
+      <audio ref={audioRef} onEnded={onAudioEnded} />
 
       {celebrating && (
         <CelebrationOverlay
