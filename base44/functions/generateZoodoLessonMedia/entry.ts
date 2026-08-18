@@ -3,15 +3,16 @@ import { synthesizeSpeech } from "../../shared/tts.ts";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Zoodo Lesson Media Engine.
-// Zoodo is the ONLY voice in the system — silly, playful, warm, slow.
-// Builds a milestone-based lesson as FIVE sequential Zoodo scripts, narrates
-// each one in the Zoodo voice, generates soft cartoon graphics, finds one
-// supporting YouTube video, and returns an assessment mode + the parent
-// encouragement video (which the frontend plays ONLY after the lesson).
-//
-// Returns: { status, audio{intro,narration,post_explanation,child_feedback,
-//          completion}, scripts{...}, graphics_urls, captions, video,
-//          assessment, completion_state, parent_video_url, notes }
+// Zoodo is the ONLY voice — silly, playful, warm, slow.
+// Produces a clean media bundle for the single-screen ZoodoLessonPlayer:
+//   • lesson_intro_audio_url        — Zoodo greets the child
+//   • lesson_graphics_urls          — soft cartoon pictures
+//   • lesson_video_url              — one real supporting YouTube video
+//   • post_explanation_audio_url     — Zoodo recaps
+//   • assessment_mode               — "camera" | "mic" (how the child shows it)
+//   • child_feedback_audio_url       — Zoodo invites the child to try
+//   • completion_state              — "pending" until the child finishes
+//   • parent_encouragement_video_url — passed through; played ONLY after completion
 // ─────────────────────────────────────────────────────────────────────────
 
 const ZOODO_PERSONA = `You are Zoodo — the ONE and ONLY character in this learning app.
@@ -30,41 +31,36 @@ LESSON RULES:
 - Build a tiny, happy, milestone-based lesson around the lesson objective.
 - Break it into small steps the child can follow one at a time.
 - Use "watch me... ...now you try!" playfully.
-- End with a silly celebration and warm praise.
 - Keep the whole lesson short enough to speak in the requested duration.`;
 
 const PLAN_SCHEMA = {
   type: 'object',
   properties: {
-    intro_script: { type: 'string', description: 'Zoodo greets the child by name, silly + warm + slow, and introduces today\'s play' },
-    narration_script: { type: 'string', description: 'The main lesson narration — teaches the objective step by step, I-do/we-do/you-do' },
-    post_explanation_script: { type: 'string', description: 'A short silly recap of what the child just learned' },
-    child_feedback_script: { type: 'string', description: 'Zoodo invites the child to try it themselves ("your turn!") and waits' },
-    completion_script: { type: 'string', description: 'A silly, super-excited celebration cheer for finishing' },
+    intro_script: { type: 'string', description: 'Zoodo greets the child by name, silly + warm + slow, and says what we will play today' },
+    post_explanation_script: { type: 'string', description: 'A short silly recap of what the child just learned from the video' },
+    child_feedback_script: { type: 'string', description: 'Zoodo invites the child to try it themselves ("your turn!") with one clear action, then pauses to wait' },
     scenes: {
       type: 'array',
-      description: 'Soft cartoon pictures shown one at a time as Zoodo talks',
+      description: 'Soft cartoon pictures shown one at a time before the lesson video',
       items: {
         type: 'object',
         properties: {
           description: { type: 'string', description: 'A soft, colorful, cartoon-style image prompt, age-appropriate, no text, no words' },
-          caption: { type: 'string', description: 'A tiny label shown under the picture (2-4 simple words)' },
         },
-        required: ['description', 'caption'],
+        required: ['description'],
       },
     },
     assessment: {
       type: 'object',
-      description: 'How to check the child participated at the end',
+      description: 'How the child shows they participated',
       properties: {
         mode: { type: 'string', enum: ['mic', 'camera'] },
-        target: { type: 'string', description: 'A short instruction shown to the child (e.g. "clap your hands", "say AH")' },
-        why: { type: 'string', description: 'One sentence on why this fits this child\'s age and today\'s skill' },
+        target: { type: 'string', description: 'A short instruction the child tries (e.g. "clap your hands", "say AH")' },
       },
       required: ['mode', 'target'],
     },
   },
-  required: ['intro_script', 'narration_script', 'post_explanation_script', 'child_feedback_script', 'completion_script', 'scenes', 'assessment'],
+  required: ['intro_script', 'post_explanation_script', 'child_feedback_script', 'scenes', 'assessment'],
 };
 
 const VIDEO_SCHEMA = {
@@ -83,16 +79,14 @@ function buildPlanPrompt(childName: string, age: number, milestone: string, obje
     `Write a lesson for a ${age}-year-old child named ${childName}.\n` +
     `Lesson objective: ${objective || 'a fun learning play'}.\n` +
     (milestone ? `Developmental milestone to practice: ${milestone}.\n` : '') +
-    `The whole lesson should take about ${duration || 60} seconds when read slowly. Split the time across the five scripts.\n` +
-    `Return FIVE separate spoken scripts:\n` +
+    `The spoken parts should take about ${duration || 60} seconds total when read slowly.\n` +
+    `Return THREE separate spoken scripts:\n` +
     `1. intro_script — Zoodo greets ${childName} by name, silly and warm, and says what we will play today.\n` +
-    `2. narration_script — the main teaching, step by step, with "watch me... now you try!".\n` +
-    `3. post_explanation_script — a short silly recap of what we just did.\n` +
-    `4. child_feedback_script — Zoodo invites ${childName} to try it themselves ("your turn!") and pauses to wait.\n` +
-    `5. completion_script — a silly, super-excited celebration cheer for finishing.\n` +
-    `Also return 3 to 5 "scenes": soft, colorful, cartoon-style picture descriptions shown one at a time while Zoodo talks. Each scene needs a tiny caption (2-4 simple words).\n` +
-    `Also return "assessment": a developmentally appropriate way to check the child participated. mode "mic" if the child should say a sound/word, "camera" if the child should do a visible gesture (clap, wave, reach). "target" is the short instruction shown to the child.\n` +
-    `Return JSON with keys: intro_script, narration_script, post_explanation_script, child_feedback_script, completion_script, scenes (array of {description, caption}), assessment ({mode, target, why}).`;
+    `2. post_explanation_script — a short silly recap of what the child just learned (this plays AFTER the lesson video).\n` +
+    `3. child_feedback_script — Zoodo invites ${childName} to try ONE clear thing themselves ("your turn!") and then pauses to wait.\n` +
+    `Also return 3 to 4 "scenes": soft, colorful, cartoon-style picture descriptions shown one at a time before the lesson video.\n` +
+    `Also return "assessment": mode "mic" if the child should say a sound/word, "camera" if the child should do a visible gesture (clap, wave, reach). "target" is the short instruction the child tries.\n` +
+    `Return JSON with keys: intro_script, post_explanation_script, child_feedback_script, scenes (array of {description}), assessment ({mode, target}).`;
 }
 
 function buildVideoPrompt(childName: string, age: number, objective: string) {
@@ -158,70 +152,60 @@ export default async function(req: Request): Promise<Response> {
     const p = (planRes || {}) as any;
     const scripts = {
       intro: String(p.intro_script || ''),
-      narration: String(p.narration_script || ''),
       post_explanation: String(p.post_explanation_script || ''),
       child_feedback: String(p.child_feedback_script || ''),
-      completion: String(p.completion_script || ''),
     };
 
-    if (!scripts.intro && !scripts.narration) {
+    if (!scripts.intro && !scripts.post_explanation) {
       return Response.json({
         status: 'error',
         notes: 'Could not create the Zoodo scripts.',
-        parent_video_url,
+        parent_encouragement_video_url: parent_video_url,
       } as any, { status: 500 });
     }
 
-    const sceneList = (Array.isArray(p.scenes) ? p.scenes : []).filter((s: any) => s && s.description).slice(0, 5);
-    const assessment = (p.assessment && p.assessment.mode) ? p.assessment : null;
+    const sceneList = (Array.isArray(p.scenes) ? p.scenes : []).filter((s: any) => s && s.description).slice(0, 4);
+    const assessmentMode = (p.assessment && p.assessment.mode) ? String(p.assessment.mode) : 'mic';
 
-    // Send all five scripts to the Zoodo voice, and generate every cartoon
+    // Send all three scripts to the Zoodo voice, and generate every cartoon
     // graphic, all in parallel.
-    const audioKeys = ['intro', 'narration', 'post_explanation', 'child_feedback', 'completion'] as const;
-    const audioTasks = audioKeys.map((k) =>
-      synthesizeZoodo(base44, scripts[k]).catch(() => '')
-    );
+    const audioKeys = ['intro', 'post_explanation', 'child_feedback'] as const;
+    const audioTasks = audioKeys.map((k) => synthesizeZoodo(base44, scripts[k]).catch(() => ''));
     const graphicTasks = sceneList.map((s: any) =>
       base44.asServiceRole.integrations.Core.GenerateImage({ prompt: cartoonPrompt(String(s.description), age) })
-        .then((r: any) => ({ url: (r && r.url) || '', caption: String(s.caption || '') }))
-        .catch(() => ({ url: '', caption: String(s.caption || '') }))
+        .then((r: any) => (r && r.url) || '')
+        .catch(() => '')
     );
 
     const allResults = await Promise.all([...audioTasks, ...graphicTasks]);
     const audioArr = allResults.slice(0, audioKeys.length);
-    const graphicResults = allResults.slice(audioKeys.length);
+    const graphicsArr = allResults.slice(audioKeys.length).filter((u: string) => u);
 
     const audio: Record<string, string> = {};
     audioKeys.forEach((k, i) => { audio[k] = audioArr[i] || ''; });
-    const graphics_urls = graphicResults.filter((g: any) => g && g.url);
-    const captions = graphics_urls.map((g: any) => g.caption);
 
-    if (!audio.intro && !audio.narration) {
+    if (!audio.intro && !audio.post_explanation) {
       return Response.json({
         status: 'error',
         notes: 'Could not create the Zoodo audio.',
-        parent_video_url,
+        parent_encouragement_video_url: parent_video_url,
       } as any, { status: 500 });
     }
 
-    const video = (videoRes && (videoRes as any).video_id) ? {
-      video_id: String((videoRes as any).video_id),
-      title: String((videoRes as any).title || ''),
-      channel: String((videoRes as any).channel || ''),
-      why: String((videoRes as any).why || ''),
-    } : null;
+    const videoId = (videoRes && (videoRes as any).video_id) ? String((videoRes as any).video_id) : '';
+    const lesson_video_url = videoId ? `https://www.youtube.com/embed/${videoId}` : '';
 
     return Response.json({
       status: 'success',
-      audio,
-      scripts,
-      graphics_urls: graphics_urls.map((g: any) => g.url),
-      captions,
-      video,
-      assessment,
+      lesson_intro_audio_url: audio.intro,
+      lesson_video_url,
+      lesson_graphics_urls: graphicsArr,
+      post_explanation_audio_url: audio.post_explanation,
+      assessment_mode: assessmentMode,
+      child_feedback_audio_url: audio.child_feedback,
       completion_state: 'pending',
-      parent_video_url,
-      notes: `Zoodo made a ${duration}s silly lesson for ${childName}.`,
+      parent_encouragement_video_url: parent_video_url,
+      notes: `Zoodo made a silly lesson for ${childName}.`,
     });
   } catch (error) {
     return Response.json({

@@ -6,20 +6,18 @@ import { base44 } from '@/api/base44Client';
 import Layout from '@/components/Layout';
 import ZoodoCharacter from '@/components/ZoodoCharacter';
 import SensoryButton from '@/components/SensoryButton';
-import CelebrationOverlay from '@/components/CelebrationOverlay';
 import MusicToggle from '@/components/MusicToggle';
 import useAutoAmbientMusic from '@/hooks/useAutoAmbientMusic';
 import { getDayConfigForAgeAndKey } from '@/lib/lessonConfig';
-import { ArrowLeft, Loader2, Play, Pause, ArrowRight, Sparkles, Check } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, Pause, ArrowRight, Check, Camera, Mic, Sparkles, Video } from 'lucide-react';
 import { Image } from '@/components/ui/image';
 
 const COLORS = ['#FF9EC4', '#4969E1', '#FFE08A', '#4FAE5A', '#7B4FE0'];
 
-// Milestone-based Zoodo lesson player. Zoodo is the only voice — the lesson
-// flows through five phases (intro → narration → post-explanation → child
-// feedback → completion), each with its own Zoodo audio clip. The parent
-// encouragement video is shown ONLY in the CelebrationOverlay after completion.
-const PHASES = ['intro', 'narration', 'post_explanation', 'child_feedback', 'completion'];
+// Single-screen, clean, modern Zoodo lesson player. Top → bottom, no tabs:
+// intro → graphics → lesson video → post-explanation → child assessment →
+// completion → THEN the parent encouragement video.
+const STEPS = ['intro', 'graphics', 'video', 'recap', 'assessment', 'done', 'parent'];
 
 export default function ZoodoLesson() {
   const { kidId, weekStart, day } = useParams();
@@ -35,10 +33,9 @@ export default function ZoodoLesson() {
   const [mediaStatus, setMediaStatus] = useState('generating');
   const [error, setError] = useState('');
 
-  const [phase, setPhase] = useState('intro');
+  const [step, setStep] = useState(0);
   const [sceneIdx, setSceneIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
-  const [celebrating, setCelebrating] = useState(false);
   const [finished, setFinished] = useState(false);
 
   const audioRef = useRef(null);
@@ -88,7 +85,7 @@ export default function ZoodoLesson() {
         }
         setMedia(res.data);
         setMediaStatus('ready');
-        setPhase('intro');
+        setStep(0);
       } catch (err) {
         if (cancelled) return;
         setError(err?.message || 'Could not create the Zoodo lesson.');
@@ -99,17 +96,20 @@ export default function ZoodoLesson() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kid?.id, dayCfg?.key]);
 
-  // Play the current phase's audio whenever the phase (or media) changes.
+  // Play the audio for the current step when it has one.
   useEffect(() => {
     if (mediaStatus !== 'ready' || !media) return;
     const a = audioRef.current;
     if (!a) return;
-    const url = media.audio?.[phase];
+    const url =
+      step === 0 ? media.lesson_intro_audio_url :
+      step === 3 ? media.post_explanation_audio_url :
+      step === 4 ? media.child_feedback_audio_url : '';
     if (!url) { setPlaying(false); return; }
     a.src = url;
     a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaStatus, media, phase]);
+  }, [mediaStatus, media, step]);
 
   const togglePlay = () => {
     const a = audioRef.current;
@@ -117,26 +117,15 @@ export default function ZoodoLesson() {
     if (a.paused) { a.play(); setPlaying(true); } else { a.pause(); setPlaying(false); }
   };
 
-  const scenes = media?.graphics_urls || [];
-  const captions = media?.captions || [];
-  const phaseIdx = PHASES.indexOf(phase);
-
-  const advanceScene = () => {
-    setSceneIdx((i) => Math.min(i + 1, scenes.length - 1));
-  };
-
   const onAudioEnded = () => {
     setPlaying(false);
-    if (phase === 'completion') {
-      completeLesson();
-    } else if (phase !== 'child_feedback') {
-      // Auto-advance intro → narration → post_explanation.
-      // child_feedback waits for the child to tap "I did it!".
-      const next = PHASES[phaseIdx + 1];
-      setPhase(next);
-      if (next === 'narration') setSceneIdx(0);
-    }
+    if (step === 0) setStep(1);              // intro → graphics
+    else if (step === 3) setStep(4);         // recap → assessment
+    // step 4 (assessment) waits for the "I did it!" button
   };
+
+  const scenes = media?.lesson_graphics_urls || [];
+  const atLastScene = sceneIdx >= scenes.length - 1;
 
   const completeLesson = async () => {
     if (lesson) {
@@ -150,7 +139,8 @@ export default function ZoodoLesson() {
       } catch (e) { /* ignore */ }
     }
     confetti({ particleCount: 140, spread: 110, origin: { y: 0.5 }, colors: COLORS });
-    setCelebrating(true);
+    setFinished(true);
+    setStep(6);
   };
 
   if (loading) {
@@ -170,6 +160,8 @@ export default function ZoodoLesson() {
       </Layout>
     );
   }
+
+  const hasAudio = step === 0 || step === 3 || step === 4;
 
   return (
     <Layout>
@@ -193,38 +185,30 @@ export default function ZoodoLesson() {
             className="text-lg font-bold leading-tight"
             style={{ color: dayCfg.titleColor, WebkitTextStroke: `1px ${dayCfg.titleStroke}` }}
           >
-            Zoodo time: {dayCfg.subject}
+            {dayCfg.subject}
           </div>
         </div>
       </div>
 
-      {/* Phase dots */}
-      <div className="mb-3 flex items-center justify-center gap-1.5">
-        {PHASES.map((ph, i) => (
+      {/* Progress bar */}
+      <div className="mb-4 flex items-center gap-1.5">
+        {STEPS.map((s, i) => (
           <div
-            key={ph}
-            className={`h-2.5 rounded-full transition-all ${
-              i === phaseIdx ? 'w-7 bg-[#D96969]' : i < phaseIdx ? 'w-2.5 bg-[#4FAE5A]' : 'w-2.5 bg-black/15'
+            key={s}
+            className={`h-2 flex-1 rounded-full transition-all ${
+              i <= step ? 'bg-[#D96969]' : 'bg-black/10'
             }`}
           />
         ))}
       </div>
 
-      {/* Zoodo + scene stage */}
-      <div className="rounded-3xl bg-white p-4 shadow-sm">
+      {/* Single-screen stage */}
+      <div className="rounded-3xl bg-white p-5 shadow-sm">
         <div className="flex flex-col items-center text-center">
-          <ZoodoCharacter size={88} bounce={playing} />
-
-          <h2 className="mt-1 text-base font-bold text-black/80">
-            {phase === 'intro' && `Hi ${kid?.name}! Zoodo is so happy to play!`}
-            {phase === 'narration' && 'Watch and listen to Zoodo…'}
-            {phase === 'post_explanation' && 'Let\'s remember what we learned!'}
-            {phase === 'child_feedback' && 'Now it\'s YOUR turn!'}
-            {phase === 'completion' && `Hooray ${kid?.name}!`}
-          </h2>
+          <ZoodoCharacter size={80} bounce={playing} />
 
           {mediaStatus === 'generating' && (
-            <div className="flex flex-col items-center py-8">
+            <div className="flex flex-col items-center py-10">
               <Loader2 className="h-7 w-7 animate-spin text-[#D96969]" />
               <p className="mt-2 text-sm font-semibold text-black/50">Zoodo is getting ready…</p>
             </div>
@@ -235,116 +219,170 @@ export default function ZoodoLesson() {
           )}
 
           {mediaStatus === 'ready' && media && (
-            <>
-              {/* Scenes show during narration + post-explanation */}
-              {(phase === 'narration' || phase === 'post_explanation') && scenes.length > 0 && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={sceneIdx}
-                    initial={{ opacity: 0, scale: 0.85, y: 8 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.85, y: -8 }}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
-                    className="mt-3 flex w-full flex-col items-center rounded-2xl bg-[#FFF6E6] p-4"
-                  >
+            <AnimatePresence mode="wait">
+              {/* 1. Intro */}
+              {step === 0 && (
+                <motion.div key="intro" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-xl font-bold text-black/80">Hi {kid?.name}! It's Zoodo!</h2>
+                  <p className="mt-1 text-sm font-semibold text-black/50">Listen to Zoodo say hello…</p>
+                </motion.div>
+              )}
+
+              {/* 2. Graphics */}
+              {step === 1 && (
+                <motion.div key="graphics" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-lg font-bold text-black/80">Look at the pictures!</h2>
+                  {scenes.length > 0 && (
                     <Image
                       src={scenes[sceneIdx]}
-                      alt={captions[sceneIdx] || 'Zoodo scene'}
+                      alt="Zoodo picture"
                       fittingType="fill"
-                      className="h-40 w-full max-w-xs rounded-2xl shadow-md"
+                      className="mt-3 h-44 w-full max-w-xs rounded-2xl shadow-md"
                     />
-                    {captions[sceneIdx] && (
-                      <div className="mt-2 text-sm font-bold text-black/70">{captions[sceneIdx]}</div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
+                  )}
+                  <div className="mt-3 flex items-center justify-center gap-1.5">
+                    {scenes.map((_, i) => (
+                      <div key={i} className={`h-2 rounded-full ${i === sceneIdx ? 'w-6 bg-[#D96969]' : 'w-2 bg-black/15'}`} />
+                    ))}
+                  </div>
+                </motion.div>
               )}
 
-              {/* Child feedback prompt */}
-              {phase === 'child_feedback' && (
-                <div className="mt-3 w-full rounded-2xl bg-[#E8F0FF] p-4">
-                  <p className="text-sm font-bold text-black/70">
-                    {media.assessment?.target || 'Show Zoodo what you can do!'}
-                  </p>
-                  <p className="mt-1 text-xs font-semibold text-black/40">
-                    {media.assessment?.mode === 'mic' ? 'Say it out loud!' : 'Show Zoodo with your body!'}
-                  </p>
-                </div>
+              {/* 3. Lesson video */}
+              {step === 2 && (
+                <motion.div key="video" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-lg font-bold text-black/80">Watch this with Zoodo!</h2>
+                  {media.lesson_video_url ? (
+                    <div className="mt-3 aspect-video w-full max-w-xs overflow-hidden rounded-2xl shadow-md">
+                      <iframe
+                        src={media.lesson_video_url}
+                        title="Lesson video"
+                        className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm font-semibold text-black/40">No video today — let's keep playing!</p>
+                  )}
+                </motion.div>
               )}
 
-              {/* Play / pause Zoodo voice */}
-              {media.audio?.[phase] && (
-                <button
-                  onClick={togglePlay}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4969E1] py-2.5 text-base font-bold text-white active:scale-[0.98] transition hover:bg-[#3b54c9]"
-                >
-                  {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
-                  {playing ? 'Pause Zoodo' : 'Hear Zoodo'}
-                </button>
+              {/* 4. Post-explanation */}
+              {step === 3 && (
+                <motion.div key="recap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-xl font-bold text-black/80">Let's remember!</h2>
+                  <p className="mt-1 text-sm font-semibold text-black/50">Zoodo is recapping the lesson…</p>
+                </motion.div>
               )}
 
-              {/* Phase actions */}
-              {phase === 'narration' && scenes.length > 1 && sceneIdx < scenes.length - 1 && (
-                <SensoryButton
-                  onClick={advanceScene}
-                  glow="#F2A03D"
-                  className="mt-2 flex w-full items-center justify-center gap-2 bg-[#F2A03D] py-3 text-base text-white"
-                >
-                  Next picture <ArrowRight className="h-5 w-5" />
-                </SensoryButton>
+              {/* 5. Child assessment */}
+              {step === 4 && (
+                <motion.div key="assessment" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-xl font-bold text-black/80">Your turn, {kid?.name}!</h2>
+                  <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#E8F0FF] px-4 py-2">
+                    {media.assessment_mode === 'camera' ? <Camera className="h-4 w-4 text-[#4969E1]" /> : <Mic className="h-4 w-4 text-[#4969E1]" />}
+                    <span className="text-sm font-bold text-[#4969E1]">
+                      {media.assessment_mode === 'camera' ? 'Show Zoodo with your body!' : 'Say it out loud!'}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm font-semibold text-black/50">Listen to Zoodo, then try it!</p>
+                </motion.div>
               )}
 
-              {phase === 'child_feedback' && (
-                <SensoryButton
-                  onClick={() => setPhase('completion')}
-                  glow="#4FAE5A"
-                  className="mt-2 flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white"
-                >
-                  <Check className="h-5 w-5" /> I did it!
-                </SensoryButton>
+              {/* 6. Completion */}
+              {step === 5 && (
+                <motion.div key="done" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-2xl font-bold text-[#4FAE5A]">You did it, {kid?.name}!</h2>
+                  <p className="mt-1 text-sm font-semibold text-black/50">Zoodo is so proud of you.</p>
+                </motion.div>
               )}
 
-              {phase === 'completion' && !playing && (
-                <SensoryButton
-                  onClick={completeLesson}
-                  glow="#4FAE5A"
-                  className="mt-2 flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white"
-                >
-                  <Sparkles className="h-5 w-5" /> All done!
-                </SensoryButton>
+              {/* 7. Parent encouragement video */}
+              {step === 6 && (
+                <motion.div key="parent" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full">
+                  <h2 className="mt-2 text-lg font-bold text-black/80">A special message for you!</h2>
+                  {media.parent_encouragement_video_url ? (
+                    <div className="mt-3 w-full max-w-xs overflow-hidden rounded-2xl shadow-md">
+                      <video
+                        src={media.parent_encouragement_video_url}
+                        controls
+                        autoPlay
+                        className="w-full rounded-2xl"
+                      />
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm font-semibold text-black/40">No parent video yet — you did great anyway!</p>
+                  )}
+                </motion.div>
               )}
-            </>
+            </AnimatePresence>
           )}
         </div>
       </div>
 
-      <p className="mt-3 text-center text-xs font-semibold text-black/40">
-        Zoodo is the only voice — just listen and play along!
-      </p>
+      {/* Single clear action per step — no clutter */}
+      <div className="mt-4">
+        {mediaStatus === 'ready' && media && (
+          <>
+            {/* Audio control for audio steps */}
+            {hasAudio && (
+              <button
+                onClick={togglePlay}
+                className="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4969E1] py-2.5 text-base font-bold text-white active:scale-[0.98] transition hover:bg-[#3b54c9]"
+              >
+                {playing ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6" />}
+                {playing ? 'Pause Zoodo' : 'Hear Zoodo'}
+              </button>
+            )}
+
+            {/* Step 1: graphics navigation */}
+            {step === 1 && scenes.length > 1 && !atLastScene && (
+              <SensoryButton onClick={() => setSceneIdx((i) => i + 1)} glow="#F2A03D" className="flex w-full items-center justify-center gap-2 bg-[#F2A03D] py-3 text-base text-white">
+                Next picture <ArrowRight className="h-5 w-5" />
+              </SensoryButton>
+            )}
+            {step === 1 && (atLastScene || scenes.length <= 1) && (
+              <SensoryButton onClick={() => setStep(2)} glow="#F2A03D" className="flex w-full items-center justify-center gap-2 bg-[#F2A03D] py-3 text-base text-white">
+                Watch the video <Video className="h-5 w-5" />
+              </SensoryButton>
+            )}
+
+            {/* Step 2: video done */}
+            {step === 2 && (
+              <SensoryButton onClick={() => setStep(3)} glow="#4969E1" className="flex w-full items-center justify-center gap-2 bg-[#4969E1] py-3 text-base text-white">
+                Continue <ArrowRight className="h-5 w-5" />
+              </SensoryButton>
+            )}
+
+            {/* Step 4: assessment — I did it */}
+            {step === 4 && (
+              <SensoryButton onClick={() => setStep(5)} glow="#4FAE5A" className="flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white">
+                <Check className="h-5 w-5" /> I did it!
+              </SensoryButton>
+            )}
+
+            {/* Step 5: completion → parent video */}
+            {step === 5 && !finished && (
+              <SensoryButton onClick={completeLesson} glow="#4FAE5A" className="flex w-full items-center justify-center gap-2 bg-[#4FAE5A] py-3 text-base text-white">
+                <Sparkles className="h-5 w-5" /> See my surprise!
+              </SensoryButton>
+            )}
+
+            {/* Step 6: parent video done → home */}
+            {step === 6 && (
+              <button
+                onClick={() => navigate('/')}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4969E1] py-3 text-base font-bold text-white active:scale-95 transition"
+              >
+                Back to home
+              </button>
+            )}
+          </>
+        )}
+      </div>
 
       <audio ref={audioRef} onEnded={onAudioEnded} />
-
-      {celebrating && (
-        <CelebrationOverlay
-          kidName={kid?.name || 'the child'}
-          subject={dayCfg.subject}
-          parentVideos={media?.parent_video_url ? [media.parent_video_url] : kid?.parent_videos}
-          cheerText={kid?.cheer_text}
-          onClose={() => { setCelebrating(false); setFinished(true); }}
-        />
-      )}
-
-      {finished && (
-        <div className="mt-4 rounded-2xl bg-white p-5 text-center shadow-sm">
-          <h2 className="text-xl font-bold text-black/80">Great playing with Zoodo!</h2>
-          <button
-            onClick={() => navigate('/')}
-            className="mt-3 w-full rounded-2xl bg-[#4969E1] py-3 font-bold text-white active:scale-95 transition"
-          >
-            Back to home
-          </button>
-        </div>
-      )}
     </Layout>
   );
 }
