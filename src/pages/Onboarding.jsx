@@ -145,7 +145,7 @@ export default function Onboarding() {
         <h1 className="mt-6 text-4xl font-bold" style={{ color: '#7B4FE0' }}>
           Meet Zoodo!
         </h1>
-        <p className="mt-3 max-w-sm text-black/60 font-medium">
+        <p className="mt-3 max-w-sm text-black/75 font-medium">
           I'm your silly, giggly learning buddy! I'll make a fun plan just for your
           little one — full of music, movement, and bubbles!
         </p>
